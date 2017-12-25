@@ -1,0 +1,38 @@
+#!/bin/bash
+
+HOME_DIR=${TRAF_HOME:-$MY_SQROOT}
+JANUSGRAPH_DIR=janusgraph               
+JANUSGRAPH_ZIP=janusgraph-0.2.0-hadoop2.zip
+JANUSGRAPH_HOST=${DCS_MASTER_HOST:-$HOSTNAME}
+
+if [ ! -d ${HOME_DIR}/${JANUSGRAPH_DIR} ]; then
+    if [ ! -f ${HOME_DIR}/${JANUSGRAPH_ZIP} ]; then
+        echo "Downloading janusgraph, file ${JANUSGRAPH_ZIP}"
+        wget -O ${HOME_DIR}/${JANUSGRAPH_ZIP} https://github.com/JanusGraph/janusgraph/releases/download/v0.2.0/janusgraph-0.2.0-hadoop2.zip
+    fi
+    cd ${HOME_DIR}
+    echo "Unzip ${HOME_DIR}/${JANUSGRAPH_ZIP}"
+    unzip ${JANUSGRAPH_ZIP} > /dev/null
+    mv ${HOME_DIR}/janusgraph-0.2.0-hadoop2 ${JANUSGRAPH_DIR}   
+    #set up janusGraph server
+    cd ${JANUSGRAPH_DIR}
+
+    echo "Do configuation..."
+    cp conf/janusgraph-hbase-solr.properties conf/gremlin-server/socket-janusgraph-hbase-solr-server.properties
+    cp conf/gremlin-server/gremlin-server.yaml conf/gremlin-server/socket-gremlin-server.yaml
+
+    echo "gremlin.graph=org.janusgraph.core.JanusGraphFactory" >> conf/gremlin-server/socket-janusgraph-hbase-solr-server.properties
+    sed -i "s/0.0.0.0/${JANUSGRAPH_HOST}/g" conf/gremlin-server/socket-gremlin-server.yaml
+    sed -i "s/janusgraph-cassandra-es-server.properties/socket-janusgraph-hbase-solr-server.properties/g" conf/gremlin-server/socket-gremlin-server.yaml
+
+    bin/gremlin-server.sh ./conf/gremlin-server/socket-gremlin-server.yaml & > gremlin-server.log 2>&1
+fi
+
+if [ ! -f ${HOME_DIR}/export/lib/JanusGraphUDF-1.0.jar ]; then
+    echo "No UDF jar for JanusGraph, there should has JanusGraphUDF-1.0.jar in ${HOME_DIR}/export/lib"
+    exit 1
+fi
+JANUSGRAPH_UDF="create library JanusGraphUDFlib file '${HOME_DIR}/export/lib/JanusGraphUDF-1.0.jar';"
+FUN_UPDATE="create table_mapping function graph_update(query varchar(1000) not null) external name 'org.trafodion.udf.janusGraph.graph_update' language java library JanusGraphUDFlib;"
+FUN_SEARCH="create table_mapping function graph_query(query varchar(1000) not null) external name 'org.trafodion.udf.janusGraph.graph_query' language java library JanusGraphUDFlib;"
+cd ${HOME_DIR}/sql/scripts;  echo ${JANUSGRAPH_UDF}${FUN_UPDATE}${FUN_SEARCH} | sqlci > ${HOME_DIR}/janusgraphErrors.txt

@@ -79,12 +79,12 @@ public class Utils {
         if (System.getenv("MY_SQROOT") == null || System.getenv("MY_SQROOT").length() == 0) {
             homeDir = System.getenv("TRAF_HOME");
         }
-        String fileDir = homeDir + "/udr/public/external_libs";
+        String fileDir = homeDir + "/udr/public/conf";
         File path = new File(fileDir);
         if (!path.exists()) {
             path.mkdirs();
         }
-        yamlFile = homeDir + "/udr/public/external_libs/janus.yaml";
+        yamlFile = homeDir + "/udr/public/conf/janus.yaml";
         File yaml = new File(yamlFile);
         if (!yaml.exists()) {
             yaml.createNewFile();
