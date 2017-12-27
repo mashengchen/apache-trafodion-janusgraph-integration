@@ -22,6 +22,9 @@ import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
 import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoMapper;
 import org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPath;
+import org.janusgraph.core.JanusGraph;
+import org.janusgraph.core.JanusGraphFactory;
+import org.janusgraph.core.schema.JanusGraphManagement;
 import org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry;
 
 public class Main {
@@ -36,12 +39,17 @@ public class Main {
         String query3 = "g.V().has('personid',1511).outE('role').has('roletype',eq('director')).inV().as('source').values('movieid').as('movies').select('source').inE().has('roletype',eq('actor')).outV().has('personid',1511).select('movies')";
         String query4 = "g.V().has('personid',4445).out('role').in('role').until(has('personid',5363)).repeat(out('role').in('role')).limit(2).path().by(valueMap())";
         if (args.length == 0) {
-            args = new String[] { query4, "" };
+            args = new String[] { query2, "" };
         }
 
         Main m = new Main();
         m.remoteSubmit(args[0], args[1]);
         System.out.println("finish");
+    }
+
+    public void apiTest() {
+        JanusGraph graph = JanusGraphFactory.open("");
+        JanusGraphManagement mgmt = graph.openManagement();
     }
 
     private static void regexTest() {
@@ -74,6 +82,7 @@ public class Main {
                 return;
             }
         }
+
         GryoMapper mapper = GryoMapper.build().addRegistry(JanusGraphIoRegistry.getInstance()).create();
 
         Cluster cluster = Cluster.build(f).serializer(new GryoMessageSerializerV1d0(mapper)).create();

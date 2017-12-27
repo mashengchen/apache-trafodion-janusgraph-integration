@@ -2,8 +2,6 @@ package org.trafodion.udf.janusGraph;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -72,11 +70,10 @@ public class graph_query extends UDR {
     @Override
     public void describeParamsAndColumns(UDRInvocationInfo info) throws UDRException {
         // info.print();
-        info.out().addVarCharColumn("A", 100, false); // column number 0
-        info.out().addVarCharColumn("B", 100, false); // column number 1
-        info.out().addVarCharColumn("C", 100, false); // column number 2
-        info.out().addVarCharColumn("D", 100, false); // column number 3
-        info.out().addVarCharColumn("E", 100, false); // column number 4
+        info.out().addVarCharColumn("A", 50, false); // column number 0
+        info.out().addVarCharColumn("B", 50, false); // column number 1
+        info.out().addVarCharColumn("C", 50, false); // column number 2
+        info.out().addVarCharColumn("D", 50, false); // column number 3
 
         Utils.getHost();// this step let Utils to do static{} code
 
@@ -310,7 +307,6 @@ public class graph_query extends UDR {
                     info.out().setString(0, obj.toString());
                     emitRow(info);
                 }
-
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
