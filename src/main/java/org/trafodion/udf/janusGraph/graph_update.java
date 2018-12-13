@@ -9,11 +9,16 @@ import java.util.regex.Pattern;
 
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
+import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
 import org.apache.tinkerpop.gremlin.driver.Result;
 import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
 import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoMapper;
+import org.janusgraph.graphdb.database.management.ManagementSystem;
 import org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry;
+import org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistryV1d0;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.trafodion.sql.udr.TypeInfo.SQLTypeClassCode;
 import org.trafodion.sql.udr.UDR;
 import org.trafodion.sql.udr.UDRException;
@@ -45,7 +50,7 @@ import org.trafodion.sql.udr.UDRPlanInfo;
  *
  */
 public class graph_update extends UDR {
-
+    private static final Logger LOG = LoggerFactory.getLogger(graph_update.class);
     String rex = "%(\\d+\\$)?([-#+ 0,(\\<]*)?(\\d+)?(\\.\\d+)?([tT])?([a-zA-Z%])";
 
     @Override
@@ -53,9 +58,10 @@ public class graph_update extends UDR {
         Utils.getHost();// this step let Utils to do static{} code
         Pattern p = Pattern.compile(rex);
         String gremlinQuery = info.par().getString(0);// gremlin query
+        LOG.info("gremlinQuery : [" + gremlinQuery + "]");
 
         // query has commit
-        if (gremlinQuery.contains("commit")) {
+        if (gremlinQuery.contains("commit()")) {
             int len = gremlinQuery.split(";").length;
             if (len < 2) {
                 throw new UDRException(38000, "error : more than one gremlin should be separated by semicolon [;]");
@@ -100,28 +106,22 @@ public class graph_update extends UDR {
 
     @Override
     public void processData(UDRInvocationInfo info, UDRPlanInfo plan) throws UDRException {
+        LOG.info("entry.");
         String gremlinQuery = info.par().getString(0);// gremlin query
 
-        GryoMapper mapper = GryoMapper.build().addRegistry(JanusGraphIoRegistry.getInstance()).create();
+        GryoMapper.Builder kryo =
+                GryoMapper.build().addRegistry(JanusGraphIoRegistry.getInstance());
+        MessageSerializer serializer = new GryoMessageSerializerV1d0(kryo);
 
         Cluster cluster = Cluster.build(Utils.getHost()).port(Utils.getPort())
-                .serializer(new GryoMessageSerializerV1d0(mapper)).create();
-        Client client = cluster.connect();
+                .serializer(serializer).create();
+
+        Client client = cluster.connect().init();
 
         int numRowsInserted = 0;
         String retVal = null;
         if (info.getNumTableInputs() == 0) {
-            String[] queryArr = gremlinQuery.split(";");
-            for (String string : queryArr) {
-                if (string.trim().length() == 0) {
-                    continue;
-                }
-                retVal = submit(client, string.trim());
-                if (retVal != null) {
-                    break;
-                }
-            }
-            numRowsInserted++;
+            retVal = submit(client, gremlinQuery.trim());
         } else {
             while (getNextRow(info)) {
 
@@ -150,22 +150,11 @@ public class graph_update extends UDR {
                 }
 
                 String formattedQuery = String.format(gremlinQuery, params.toArray());
-                String[] queryArr = formattedQuery.split(";");
-                for (String string : queryArr) {
-                    if (string.trim().length() == 0) {
-                        continue;
-                    }
-                    retVal = submit(client, string.trim());
-                    if (retVal != null) {
-                        break;
-                    }
-                }
-                numRowsInserted++;
+                retVal = submit(client, formattedQuery.trim());
             }
-
-            info.out().setLong(0, numRowsInserted);
-            emitRow(info);
         }
+        info.out().setLong(0, retVal == null ? numRowsInserted++ : numRowsInserted);
+        emitRow(info);
 
         if (cluster != null) {
             cluster.close();
@@ -179,11 +168,12 @@ public class graph_update extends UDR {
     private String submit(Client client, String formattedQuery) throws UDRException {
         try {
             List<Result> results = client.submit(formattedQuery).all().get();
-
+            LOG.debug(results.toString());
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage(), e);
             return e.getMessage();
         } catch (ExecutionException e) {
+            LOG.error(e.getMessage(), e);
             if (e.getCause() instanceof ResponseException) {
                 ResponseException re = (ResponseException) e.getCause();
                 submit(client, "graph.tx().rollback()");

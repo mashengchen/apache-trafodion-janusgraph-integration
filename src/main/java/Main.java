@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
+import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
 import org.apache.tinkerpop.gremlin.driver.Result;
 import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
 import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
@@ -26,6 +27,7 @@ import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.core.schema.JanusGraphManagement;
 import org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry;
+import org.trafodion.udf.janusGraph.Utils;
 
 public class Main {
 
@@ -83,10 +85,13 @@ public class Main {
             }
         }
 
-        GryoMapper mapper = GryoMapper.build().addRegistry(JanusGraphIoRegistry.getInstance()).create();
+        GryoMapper.Builder kryo =
+                GryoMapper.build().addRegistry(JanusGraphIoRegistry.getInstance());
+        MessageSerializer serializer = new GryoMessageSerializerV1d0(kryo);
 
-        Cluster cluster = Cluster.build(f).serializer(new GryoMessageSerializerV1d0(mapper)).create();
-        Client client = cluster.connect();
+        Cluster cluster = Cluster.build(Utils.getHost()).port(Utils.getPort())
+                .serializer(serializer).create();
+        Client client = cluster.connect().init();
         try {
             System.out.println("submit query:");
             System.out.println(query);

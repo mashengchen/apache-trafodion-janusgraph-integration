@@ -17,12 +17,15 @@ import java.util.regex.Pattern;
 
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
+import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
 import org.apache.tinkerpop.gremlin.driver.Result;
 import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
 import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoMapper;
 import org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPath;
 import org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.trafodion.sql.udr.TypeInfo.SQLTypeClassCode;
 import org.trafodion.sql.udr.UDR;
 import org.trafodion.sql.udr.UDRException;
@@ -65,6 +68,8 @@ import org.trafodion.sql.udr.UDRPlanInfo;
  *
  */
 public class graph_query extends UDR {
+    private static final Logger LOG = LoggerFactory.getLogger(graph_query.class);
+
     String rex = "%(\\d+\\$)?([-#+ 0,(\\<]*)?(\\d+)?(\\.\\d+)?([tT])?([a-zA-Z%])";
 
     @Override
@@ -79,6 +84,8 @@ public class graph_query extends UDR {
 
         Pattern p = Pattern.compile(rex);
         String gremlinQuery = info.par().getString(0);// gremlin query
+        LOG.info("gremlinQuery : [" + gremlinQuery + "]");
+
         Matcher m = p.matcher(gremlinQuery);
         if (m.find()) {
             // query with input from EsgynDB table
@@ -106,6 +113,7 @@ public class graph_query extends UDR {
             try {
                 String.format(gremlinQuery, params.toArray());
             } catch (IllegalFormatConversionException e) {
+                LOG.error(e.getMessage(), e);
                 throw new UDRException(38000, "error : input gremlin has illegal parameter...[%s]", e.getMessage());
             }
         } else {
@@ -116,14 +124,17 @@ public class graph_query extends UDR {
 
     @Override
     public void processData(UDRInvocationInfo info, UDRPlanInfo plan) throws UDRException {
+        LOG.info("entry.");
 
         String gremlinQuery = info.par().getString(0);// gremlin query
 
-        GryoMapper mapper = GryoMapper.build().addRegistry(JanusGraphIoRegistry.getInstance()).create();
+        GryoMapper.Builder kryo =
+                GryoMapper.build().addRegistry(JanusGraphIoRegistry.getInstance());
+        MessageSerializer serializer = new GryoMessageSerializerV1d0(kryo);
 
         Cluster cluster = Cluster.build(Utils.getHost()).port(Utils.getPort())
-                .serializer(new GryoMessageSerializerV1d0(mapper)).create();
-        Client client = cluster.connect();
+                .serializer(serializer).create();
+        Client client = cluster.connect().init();
         String retVal = null;
 
         if (info.getNumTableInputs() == 0) {
@@ -175,6 +186,7 @@ public class graph_query extends UDR {
             int pathNum = 1;
             for (Result result : results) {
                 Object obj = result.getObject();
+                LOG.debug("Result is : " + result + ". Result object type : " + obj.getClass());
                 if (obj instanceof AbstractMap.SimpleEntry) {
                     AbstractMap.SimpleEntry entry = (AbstractMap.SimpleEntry) obj;
                     // System.out.println(result + " : entry value type=" +
@@ -242,65 +254,6 @@ public class graph_query extends UDR {
                             }
                             emitRow(info);
                         }
-
-                        // int pathName = 1;
-                        // // get all keys
-                        // Set<String> keySet = new HashSet<String>();
-                        // for (Object object : dPath.objects()) {
-                        // Map<String, Object> mObj = (Map) object;
-                        // for (String key : mObj.keySet()) {
-                        // keySet.add(key);
-                        // }
-                        // }
-                        // List<String> keyList = new ArrayList<String>(keySet);
-                        //
-                        // List<List<Object>> resultDatas = new
-                        // ArrayList<List<Object>>();
-                        // for (int i = 0; i < dPath.size(); i++) {
-                        // Object pathObj = dPath.objects().get(i);
-                        //
-                        // List<Object> resultList = new ArrayList<Object>();
-                        // Map mPathObj = (Map) pathObj;
-                        // for (Object object : mPathObj.entrySet()) {
-                        // resultList.add(pathNum);
-                        //
-                        // Entry entry = (Entry) object;
-                        // if (entry.getValue() instanceof List) {
-                        // List<Object> valList = (List<Object>)
-                        // entry.getValue();
-                        // List<Object> tmpList;
-                        // for (Object valObj : valList) {
-                        // tmpList = graph_query.deepCopy(resultList);
-                        // tmpList.add(pathName++);
-                        // int keyIndex = keyList.indexOf(entry.getKey()) + 2;
-                        // while (keyIndex > tmpList.size()) {
-                        // tmpList.add(tmpList.size(), null);
-                        // }
-                        // tmpList.add(keyIndex, valObj);
-                        // while (tmpList.size() < keyList.size() + 2) {
-                        // tmpList.add(tmpList.size(), null);
-                        // }
-                        // resultDatas.add(tmpList);
-                        // }
-                        // } else {
-                        // resultList.add(pathName++);
-                        // resultList.add(keyList.indexOf(entry.getKey()) + 2,
-                        // entry.getValue());
-                        // resultDatas.add(resultList);
-                        // }
-                        // }
-                        // }
-                        // for (List<Object> list : resultDatas) {
-                        // for (int i = 0; i < list.size(); i++) {
-                        // Object o = list.get(i);
-                        // if (o == null) {
-                        // info.out().setString(i, "");
-                        // } else {
-                        // info.out().setString(i, o.toString());
-                        // }
-                        // }
-                        // emitRow(info);
-                        // }
                     }
                     pathNum++;
                 } else {
@@ -309,9 +262,10 @@ public class graph_query extends UDR {
                 }
             }
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage(), e);
             return e.getMessage();
         } catch (ExecutionException e) {
+            LOG.error(e.getMessage(), e);
             if (e.getCause() instanceof ResponseException) {
                 // rollback
                 return String.format("error : [%s]", e.getMessage());
