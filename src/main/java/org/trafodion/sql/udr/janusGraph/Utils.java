@@ -1,4 +1,4 @@
-package org.trafodion.udf.janusGraph;
+package org.trafodion.sql.udr.janusGraph;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -7,6 +7,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 public class Utils {
+    protected final static String rex =
+            "%(\\d+\\$)?([-#+ 0,(\\<]*)?(\\d+)?(\\.\\d+)?([tT])?([a-zA-Z%])";
     private static String host;
     private static int port;
     private static long timeStamp;

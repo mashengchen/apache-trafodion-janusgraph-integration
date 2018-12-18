@@ -33,6 +33,6 @@ if [ ! -f ${HOME_DIR}/export/lib/JanusGraphUDF-1.0.jar ]; then
     exit 1
 fi
 JANUSGRAPH_UDF="create library JanusGraphUDFlib file '${HOME_DIR}/export/lib/JanusGraphUDF-1.0.jar';"
-FUN_UPDATE="create table_mapping function graph_update(query varchar(1000) not null) external name 'org.trafodion.udf.janusGraph.graph_update' language java library JanusGraphUDFlib;"
-FUN_SEARCH="create table_mapping function graph_query(query varchar(1000) not null) external name 'org.trafodion.udf.janusGraph.graph_query' language java library JanusGraphUDFlib;"
+FUN_UPDATE="create table_mapping function graph_update(query varchar(1000) not null) external name 'org.trafodion.sql.udr.janusGraph.GraphUpdate' language java library JanusGraphUDFlib;"
+FUN_SEARCH="create table_mapping function graph_query(query varchar(1000) not null) external name 'org.trafodion.sql.udr.janusGraph.GraphQuery' language java library JanusGraphUDFlib;"
 cd ${HOME_DIR}/sql/scripts;  echo ${JANUSGRAPH_UDF}${FUN_UPDATE}${FUN_SEARCH} | sqlci > ${HOME_DIR}/janusgraphErrors.txt

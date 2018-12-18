@@ -27,7 +27,7 @@ import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.core.schema.JanusGraphManagement;
 import org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry;
-import org.trafodion.udf.janusGraph.Utils;
+import org.trafodion.sql.udr.janusGraph.Utils;
 
 public class Main {
 

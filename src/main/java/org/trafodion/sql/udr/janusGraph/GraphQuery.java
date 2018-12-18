@@ -1,4 +1,4 @@
-package org.trafodion.udf.janusGraph;
+package org.trafodion.sql.udr.janusGraph;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -38,39 +38,18 @@ import org.trafodion.sql.udr.UDRPlanInfo;
  * 
  *         query with no input
  * 
- *         select person_id from UDF(graph_query(Gremlin query,yamlFilePath))
+ *         select person_id from UDF(graph_query(Gremlin query))
  * 
  *         query with input from EsgynDB table
  * 
  *         select movie_id from UDF(graph_query( table(select person_id from
  *         person where name = 'Clint Eastwood'), 'gremlin query with parameter
- *         %1$s' ,yamlFilePath ));
+ *         %1$s'));
  * 
- *         insert
- * 
- *         select * from UDF(graph_update( table(select person_id from(insert
- *         into person (name, facebook_likes) values ('Clint Eastwood', 1000))
- *         p), 'graph.addVertex(label, "person", "personid", %1$s)'
- *         ,yamlFilePath));
- * 
- *         delete
- * 
- *         select * from udf(graph_update( table(select person_id from (delete
- *         from person where name = 'Clint Eastwood') p), 'g.V().has("movie",
- *         "movieid", %1$s).drop()' ,yamlFilePath));
- * 
- *         update
- * 
- *         select * from udf(graph_update( table(select person_id from (update
- *         person set facebook_likes = 16001 where name = 'Clint Eastwood') p),
- *         'g.V().has("person", "personid", %1$s).property("personid",
- *         %1$s).iterate()’ ,yamlFilePath));
- *
  */
-public class graph_query extends UDR {
-    private static final Logger LOG = LoggerFactory.getLogger(graph_query.class);
+public class GraphQuery extends UDR {
+    private static final Logger LOG = LoggerFactory.getLogger(GraphQuery.class);
 
-    String rex = "%(\\d+\\$)?([-#+ 0,(\\<]*)?(\\d+)?(\\.\\d+)?([tT])?([a-zA-Z%])";
 
     @Override
     public void describeParamsAndColumns(UDRInvocationInfo info) throws UDRException {
@@ -82,7 +61,7 @@ public class graph_query extends UDR {
 
         Utils.getHost();// this step let Utils to do static{} code
 
-        Pattern p = Pattern.compile(rex);
+        Pattern p = Pattern.compile(Utils.rex);
         String gremlinQuery = info.par().getString(0);// gremlin query
         LOG.info("gremlinQuery : [" + gremlinQuery + "]");
 
@@ -231,7 +210,7 @@ public class graph_query extends UDR {
                                     List<Object> valList = (List<Object>) entry.getValue();
                                     List<Object> tmpList;
                                     for (Object valObj : valList) {
-                                        tmpList = graph_query.deepCopy(resultList);
+                                        tmpList = GraphQuery.deepCopy(resultList);
                                         tmpList.add(pathSeq++);
 
                                         tmpList.add(valObj.toString());

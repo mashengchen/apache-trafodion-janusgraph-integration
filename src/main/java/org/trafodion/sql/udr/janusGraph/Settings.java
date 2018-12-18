@@ -1,4 +1,4 @@
-package org.trafodion.udf.janusGraph;
+package org.trafodion.sql.udr.janusGraph;
 
 import java.io.InputStream;
 import java.util.ArrayList;

@@ -1,4 +1,4 @@
-package org.trafodion.udf.janusGraph;
+package org.trafodion.sql.udr.janusGraph;
 
 import java.util.ArrayList;
 import java.util.IllegalFormatConversionException;
@@ -49,14 +49,13 @@ import org.trafodion.sql.udr.UDRPlanInfo;
  *         %1$s).iterate()’ ));
  *
  */
-public class graph_update extends UDR {
-    private static final Logger LOG = LoggerFactory.getLogger(graph_update.class);
-    String rex = "%(\\d+\\$)?([-#+ 0,(\\<]*)?(\\d+)?(\\.\\d+)?([tT])?([a-zA-Z%])";
+public class GraphUpdate extends UDR {
+    private static final Logger LOG = LoggerFactory.getLogger(GraphUpdate.class);
 
     @Override
     public void describeParamsAndColumns(UDRInvocationInfo info) throws UDRException {
         Utils.getHost();// this step let Utils to do static{} code
-        Pattern p = Pattern.compile(rex);
+        Pattern p = Pattern.compile(Utils.rex);
         String gremlinQuery = info.par().getString(0);// gremlin query
         LOG.info("gremlinQuery : [" + gremlinQuery + "]");
 
@@ -122,6 +121,12 @@ public class graph_update extends UDR {
         String retVal = null;
         if (info.getNumTableInputs() == 0) {
             retVal = submit(client, gremlinQuery.trim());
+            if (retVal == null) {
+                numRowsInserted++;
+            }else {
+                throw new UDRException(38000,
+                        "Error : " + retVal + ". gremlinQuery : " + gremlinQuery);
+            }
         } else {
             while (getNextRow(info)) {
 
@@ -146,26 +151,27 @@ public class graph_update extends UDR {
                             break;
                         }
                     }
-
                 }
 
                 String formattedQuery = String.format(gremlinQuery, params.toArray());
                 retVal = submit(client, formattedQuery.trim());
+                if (retVal == null) {
+                    numRowsInserted++;
+                }else {
+                    throw new UDRException(38000,
+                            "Error : " + retVal + ". gremlinQuery : " + formattedQuery);
+                }
             }
         }
-        info.out().setLong(0, retVal == null ? numRowsInserted++ : numRowsInserted);
+        info.out().setLong(0, numRowsInserted);
         emitRow(info);
 
         if (cluster != null) {
             cluster.close();
         }
-
-        if (retVal != null) {
-            throw new UDRException(38000, retVal);
-        }
     }
 
-    private String submit(Client client, String formattedQuery) throws UDRException {
+    private String submit(Client client, String formattedQuery) {
         try {
             List<Result> results = client.submit(formattedQuery).all().get();
             LOG.debug(results.toString());
